@@ -3,14 +3,15 @@ import { AlertTriangle } from 'lucide-react';
 
 interface EngineeringOverlaysProps {
   type: string;
+  theme?: any;
 }
 
-export default function EngineeringOverlays({ type }: EngineeringOverlaysProps) {
+export default function EngineeringOverlays({ type, theme }: EngineeringOverlaysProps) {
   if (!type || type === 'none') return null;
 
   if (type === 'waveform') {
     return (
-      <div className="absolute bottom-0 left-0 w-full h-32 flex items-end justify-between px-2 opacity-30 pointer-events-none z-0">
+      <div className={`absolute bottom-0 left-0 w-full h-32 flex items-end justify-between px-2 opacity-30 pointer-events-none z-0 ${theme?.text || 'text-zinc-500'}`}>
         {[...Array(60)].map((_, i) => {
           const height = 10 + Math.random() * 90;
           const delay = Math.random() * -2;
@@ -34,7 +35,7 @@ export default function EngineeringOverlays({ type }: EngineeringOverlaysProps) 
   if (type === 'heatmap') {
     return (
       <div 
-        className="absolute inset-0 opacity-50 pointer-events-none mix-blend-overlay z-0"
+        className="absolute inset-0 opacity-[0.15] pointer-events-none mix-blend-screen z-0"
         style={{
           background: `
             radial-gradient(circle at 20% 30%, rgba(239, 68, 68, 0.9) 0%, transparent 60%),
@@ -80,7 +81,7 @@ export default function EngineeringOverlays({ type }: EngineeringOverlaysProps) 
 
   if (type === 'crt') {
     return (
-      <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden mix-blend-overlay">
+      <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-50">
         {/* Scanlines */}
         <div 
           className="absolute inset-0 opacity-30"
@@ -123,6 +124,44 @@ export default function EngineeringOverlays({ type }: EngineeringOverlaysProps) 
             </div>
           );
         })}
+      </div>
+    );
+  }
+
+  if (type === 'static') {
+    return (
+      <div 
+        className="absolute inset-0 pointer-events-none z-50 opacity-15 mix-blend-overlay"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+        }}
+      />
+    );
+  }
+
+  if (type === 'cinematic') {
+    return (
+      <div className="absolute inset-0 pointer-events-none z-50 flex flex-col justify-between">
+        <div className="w-full h-16 md:h-24 bg-black" />
+        <div className="w-full h-16 md:h-24 bg-black" />
+      </div>
+    );
+  }
+
+  if (type === 'cybergrid') {
+    return (
+      <div 
+        className="absolute inset-0 pointer-events-none z-0 overflow-hidden flex flex-col justify-end"
+        style={{ perspective: '800px' }}
+      >
+        <div 
+          className="w-[250%] h-[150%] opacity-30 animate-bg-pan origin-bottom self-center mb-[-25%]"
+          style={{
+            background: 'linear-gradient(transparent 30%, rgba(6, 182, 212, 1) 100%), linear-gradient(90deg, rgba(6, 182, 212, 0.4) 1px, transparent 1px), linear-gradient(rgba(6, 182, 212, 0.4) 1px, transparent 1px)',
+            backgroundSize: '100% 100%, 40px 40px, 40px 40px',
+            transform: 'rotateX(75deg)'
+          }}
+        />
       </div>
     );
   }

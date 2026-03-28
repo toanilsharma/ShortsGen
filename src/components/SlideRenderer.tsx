@@ -20,7 +20,23 @@ interface SlideRendererProps {
   primaryColor: keyof typeof COLORS;
   fontScale: number;
   contentWidth: number;
+  textBackdrop?: string;
 }
+
+const getBackdropClass = (backdrop: string | undefined): string => {
+  switch (backdrop) {
+    case 'frosted':
+      return 'bg-black/30 backdrop-blur-lg rounded-2xl px-6 py-5 border border-white/10 shadow-2xl';
+    case 'pill':
+      return 'bg-black/60 rounded-full px-8 py-4 shadow-xl';
+    case 'shadow':
+      return '[text-shadow:_0_2px_12px_rgba(0,0,0,0.9),_0_4px_24px_rgba(0,0,0,0.6),_0_0_4px_rgba(0,0,0,1)]';
+    case 'outline':
+      return '[-webkit-text-stroke:_1.5px_rgba(0,0,0,0.7)] [text-shadow:_0_2px_8px_rgba(0,0,0,0.6)]';
+    default:
+      return '';
+  }
+};
 
 const highlightText = (text: string, colorConfig: any, isInsight: boolean = false) => {
   const keywords = ['Failure', 'Warning', 'Danger', 'Error', 'Action', 'Predictive', 'Downtime', 'Catastrophic'];
@@ -83,7 +99,7 @@ const renderAnimatedText = (text: string, animation: any, colorConfig: any, isIn
   return highlightText(text, colorConfig, isInsight);
 };
 
-export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, animation, speed, primaryColor, fontScale, contentWidth }) => {
+export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, animation, speed, primaryColor, fontScale, contentWidth, textBackdrop }) => {
   if (!slide) return null;
 
   const isTitle = slide.type === 'title';
@@ -94,6 +110,12 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, anim
   const titleSize = `${18 * scale}px`;
   const bodySize = `${12 * scale}px`;
   const insightSize = `${14 * scale}px`;
+
+  const backdropCls = getBackdropClass(textBackdrop);
+  // For 'pill' backdrop, long text should use rounded-2xl instead of rounded-full
+  const resolvedBackdropCls = textBackdrop === 'pill' && slide.content.length > 40
+    ? backdropCls.replace('rounded-full', 'rounded-2xl')
+    : backdropCls;
 
   return (
     <AnimationWrapper animation={animation} speed={speed} id={slide.id}>
@@ -106,7 +128,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, anim
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className={`font-extrabold leading-tight tracking-tighter ${colorConfig.title} w-full text-center break-words uppercase`}
+            className={`font-extrabold leading-tight tracking-tighter ${colorConfig.title} w-full text-center break-words uppercase ${resolvedBackdropCls}`}
             style={{ fontSize: titleSize }}
           >
             {renderAnimatedText(slide.content, animation, colorConfig)}
@@ -118,7 +140,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, anim
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className={`leading-relaxed font-semibold ${theme.text} w-full text-center break-words`}
+            className={`leading-relaxed font-semibold ${theme.text} w-full text-center break-words ${resolvedBackdropCls}`}
             style={{ fontSize: bodySize }}
           >
             {renderAnimatedText(slide.content, animation, colorConfig)}

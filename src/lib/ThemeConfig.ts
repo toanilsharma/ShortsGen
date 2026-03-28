@@ -5,12 +5,18 @@ export const COLORS = {
   emerald: { name: 'Emerald', hex: '#10b981', title: 'text-emerald-500', insight: 'bg-emerald-600 text-white', highlight: 'text-emerald-500 bg-emerald-500/10' },
   cyan: { name: 'Cyan', hex: '#06b6d4', title: 'text-cyan-500', insight: 'bg-cyan-600 text-white', highlight: 'text-cyan-500 bg-cyan-500/10' },
   neon: { name: 'Neon Pink', hex: '#ec4899', title: 'text-pink-500', insight: 'bg-pink-600 text-white', highlight: 'text-pink-500 bg-pink-500/10' },
+  violet: { name: 'Violet', hex: '#8b5cf6', title: 'text-violet-500', insight: 'bg-violet-600 text-white', highlight: 'text-violet-500 bg-violet-500/10' },
+  fuchsia: { name: 'Fuchsia', hex: '#d946ef', title: 'text-fuchsia-500', insight: 'bg-fuchsia-600 text-white', highlight: 'text-fuchsia-500 bg-fuchsia-500/10' },
+  lime: { name: 'Lime', hex: '#84cc16', title: 'text-lime-500', insight: 'bg-lime-600 text-black', highlight: 'text-lime-500 bg-lime-500/10' },
+  orange: { name: 'Orange', hex: '#f97316', title: 'text-orange-500', insight: 'bg-orange-600 text-white', highlight: 'text-orange-500 bg-orange-500/10' },
 };
 
 export const BG_STYLES = {
   solid: 'Solid',
   gradient: 'Gradient',
-  grid: 'Engineering Grid'
+  grid: 'Engineering Grid',
+  dots: 'Polka Dots',
+  waves: 'Diagonal Waves'
 };
 
 export const THEMES = {
@@ -63,6 +69,36 @@ export const THEMES = {
     font: 'font-mono',
     pattern: 'linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px), linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px)',
     patternSize: '20px 20px'
+  },
+  neon_nights: {
+    id: 'neon_nights',
+    name: 'Neon Nights',
+    solidClass: 'bg-zinc-950',
+    gradientClass: 'bg-gradient-to-br from-indigo-950 via-purple-900 to-fuchsia-950',
+    text: 'text-fuchsia-100',
+    font: 'font-sans',
+    pattern: 'radial-gradient(circle, rgba(217, 70, 239, 0.1) 1px, transparent 1px)',
+    patternSize: '30px 30px'
+  },
+  retro: {
+    id: 'retro',
+    name: 'Retro Terminal',
+    solidClass: 'bg-emerald-950',
+    gradientClass: 'bg-gradient-to-b from-emerald-900 to-black',
+    text: 'text-emerald-400',
+    font: 'font-mono',
+    pattern: 'linear-gradient(rgba(16, 185, 129, 0.05) 2px, transparent 2px)',
+    patternSize: '100% 4px'
+  },
+  oceanic: {
+    id: 'oceanic',
+    name: 'Oceanic Depth',
+    solidClass: 'bg-cyan-950',
+    gradientClass: 'bg-gradient-to-br from-slate-900 via-cyan-950 to-blue-950',
+    text: 'text-cyan-50',
+    font: 'font-sans',
+    pattern: 'radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)',
+    patternSize: '24px 24px'
   }
 };
 
@@ -138,6 +174,38 @@ export const ANIMATIONS = {
     childVariants: {
       initial: { opacity: 0, scale: 0.5, y: 10 },
       animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', damping: 12 } }
+    }
+  },
+  blurReveal: {
+    name: 'Blur Reveal',
+    variants: {
+      initial: { opacity: 0, filter: 'blur(10px)', scale: 1.1 },
+      animate: { opacity: 1, filter: 'blur(0px)', scale: 1, transition: { duration: 0.8, ease: 'easeOut' } },
+      exit: { opacity: 0, filter: 'blur(10px)', scale: 1.1 }
+    }
+  },
+  bouncyPop: {
+    name: 'Bouncy Pop',
+    variants: {
+      initial: { opacity: 0, scale: 0.3 },
+      animate: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 15 } },
+      exit: { opacity: 0, scale: 0.5 }
+    }
+  },
+  flip3d: {
+    name: '3D Flip',
+    variants: {
+      initial: { opacity: 0, rotateX: 90 },
+      animate: { opacity: 1, rotateX: 0, transition: { type: 'spring', stiffness: 100, damping: 15 } },
+      exit: { opacity: 0, rotateX: -90 }
+    }
+  },
+  elasticSlide: {
+    name: 'Elastic Slide',
+    variants: {
+      initial: { opacity: 0, x: -100 },
+      animate: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 150, damping: 10, mass: 1.2 } },
+      exit: { opacity: 0, x: 100 }
     }
   }
 };

@@ -4,10 +4,10 @@ import { AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 
 import { THEMES, ANIMATIONS, TEMPLATES, COLORS, BG_STYLES } from './lib/ThemeConfig';
-import { getSmartConfiguration, calculateSlideDuration } from './lib/SmartLogic';
 import SlideRenderer from './components/SlideRenderer';
 import TimelineEditor from './components/TimelineEditor';
 import EngineeringOverlays from './components/EngineeringOverlays';
+import { transcodeVideo, extractPngFrames } from './lib/Transcoder';
 import BackgroundMusic, { MUSIC_TRACKS } from './components/BackgroundMusic';
 import RecordingGuide from './components/RecordingGuide';
 import ExportOptions from './components/ExportOptions';
@@ -79,8 +79,15 @@ export default function App() {
   const [musicTrack, setMusicTrack] = useState<keyof typeof MUSIC_TRACKS>('none');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'mp4' | 'webm'>('mp4');
-  const [isSmartMode, setIsSmartMode] = useState(true); // Default to Smart Mode for world-class experience
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'webm' | 'gif' | 'apng' | 'pngs'>('webm');
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [transcodeProgress, setTranscodeProgress] = useState(0);
+  const [enableTTS, setEnableTTS] = useState(false);
+  const [synthVoices, setSynthVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [textBackdrop, setTextBackdrop] = useState<string>('none');
+  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [sidebarTab, setSidebarTab] = useState<'content' | 'style' | 'audio'>('content');
+
 
   const previewRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,32 +114,52 @@ export default function App() {
     setCurrentIndex(0);
   }, [inputText]);
 
-  // Smart Mode Engine
+
+
+  // Load voices for TTS
   useEffect(() => {
-    if (isSmartMode && inputText) {
-      const smart = getSmartConfiguration(inputText);
-      setThemeId(smart.themeId);
-      setAnimationId(smart.animationId);
-      setPrimaryColor(smart.primaryColor);
-      setBgStyle(smart.bgStyle);
-      setMusicTrack(smart.musicTrackId as any);
-      setGlobalOverlay(smart.overlayId);
-      setFontScale(smart.fontScale);
-      
-      // Update durations for all slides
-      setSlides(prevSlides => prevSlides.map(slide => ({
-        ...slide,
-        duration: calculateSlideDuration(slide.content, slide.type === 'title')
-      })));
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const updateVoices = () => {
+         setSynthVoices(window.speechSynthesis.getVoices());
+      };
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+      updateVoices();
     }
-  }, [isSmartMode, inputText]);
+  }, []);
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (isPlaying && slides.length > 0) {
       const currentSlide = slides[currentIndex];
-      const baseSpeed = speed === 'slow' ? 4000 : speed === 'fast' ? 2000 : 3000;
-      const slideDuration = currentSlide?.duration || baseSpeed;
+      let slideDuration = speed === 'slow' ? 4000 : speed === 'fast' ? 2000 : 3000;
+
+      if (enableTTS && 'speechSynthesis' in window) {
+         window.speechSynthesis.cancel();
+         
+         const text = currentSlide.content.replace(/^Title:\s*/i, '');
+         if (text.trim()) {
+           const utterance = new SpeechSynthesisUtterance(text);
+           
+           // Fast-paced viral configuration
+           utterance.rate = speed === 'fast' ? 1.35 : speed === 'slow' ? 0.9 : 1.15;
+           utterance.pitch = 1.05;
+           
+           const goodVoice = synthVoices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
+           if (goodVoice) utterance.voice = goodVoice;
+           
+           // Estimate speaking duration to dynamically adjust slide length!
+           const wordCount = text.split(' ').length;
+           const estimatedDuration = (wordCount / (2.5 * utterance.rate)) * 1000 + 400; // padding
+           
+           if (estimatedDuration > slideDuration) {
+              slideDuration = estimatedDuration;
+           }
+
+           window.speechSynthesis.speak(utterance);
+         }
+      }
+
+      if (currentSlide?.duration) slideDuration = currentSlide.duration;
 
       timeout = setTimeout(() => {
         setCurrentIndex((prev) => {
@@ -141,9 +168,11 @@ export default function App() {
           return prev;
         });
       }, slideDuration);
+    } else {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
     return () => clearTimeout(timeout);
-  }, [isPlaying, currentIndex, slides, speed]);
+  }, [isPlaying, currentIndex, slides, speed, enableTTS, synthVoices]);
 
   const handleExportImages = async () => {
     if (!previewRef.current) return;
@@ -210,22 +239,43 @@ export default function App() {
         }
       };
 
-      mediaRecorder.onstop = () => {
-        // Use the actual recording format for the blob
+      mediaRecorder.onstop = async () => {
+        setIsRecording(false);
+        setRecordingProgress(0);
+        stream.getTracks().forEach(track => track.stop());
+
+        // Use the actual recording format for the blob initially before transcoding
         const finalType = exportFormat === 'mp4' ? 'video/mp4' : 'video/webm';
-        const blob = new Blob(chunksRef.current, { type: finalType });
+        let blob = new Blob(chunksRef.current, { type: finalType });
+        
+        if (exportFormat !== 'webm') {
+          setIsTranscoding(true);
+          try {
+            if (exportFormat === 'pngs') {
+               blob = await extractPngFrames(blob, setTranscodeProgress);
+            } else {
+               blob = await transcodeVideo(blob, exportFormat as any, setTranscodeProgress);
+            }
+          } catch (e) {
+            console.error("Transcoding failed:", e);
+            alert("Failed to transcode video. Downloading raw WebM instead.");
+            // If it failed, don't break the whole app, just fallback to webm.
+          } finally {
+            setIsTranscoding(false);
+            setTranscodeProgress(0);
+          }
+        }
+
+        const ext = exportFormat === 'pngs' ? 'zip' : exportFormat;
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         document.body.appendChild(a);
         a.style.display = 'none';
         a.href = url;
-        a.download = `shortsgen-export-${Date.now()}.${exportFormat}`;
+        a.download = `shortsgen-export-${Date.now()}.${ext}`;
         a.click();
         
         window.URL.revokeObjectURL(url);
-        setIsRecording(false);
-        setRecordingProgress(0);
-        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start(100);
@@ -239,7 +289,7 @@ export default function App() {
     }
   }, [slides.length, exportFormat]);
 
-  const initiateExport = (format: 'mp4' | 'webm') => {
+  const initiateExport = (format: 'mp4' | 'webm' | 'gif' | 'apng' | 'pngs') => {
     setExportFormat(format);
     setShowGuide(true);
   };
@@ -368,252 +418,391 @@ export default function App() {
           <p className="text-sm text-zinc-500 mt-1">Text to Vertical Video</p>
         </div>
 
-        <div className="p-6 flex-1 flex flex-col gap-8">
-          {/* Templates */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-              <LayoutTemplate className="w-4 h-4" /> Templates
-            </Label>
-            <div className="grid grid-cols-1 gap-2">
-              {Object.entries(TEMPLATES).map(([id, t]) => (
-                <Button
-                  key={id}
-                  variant="outline"
-                  className="justify-start font-normal"
-                  onClick={() => setInputText(t.text)}
-                >
-                  {t.name}
-                </Button>
-              ))}
-            </div>
-          </div>
+        {/* Sidebar Tabs */}
+        <div className="flex border-b border-zinc-200 bg-zinc-50/50">
+          <button 
+            onClick={() => setSidebarTab('content')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ${sidebarTab === 'content' ? 'text-indigo-600 bg-white border-b-2 border-indigo-600' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
+          >
+            1. Content
+          </button>
+          <button 
+            onClick={() => setSidebarTab('style')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ${sidebarTab === 'style' ? 'text-indigo-600 bg-white border-b-2 border-indigo-600' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
+          >
+            2. Style
+          </button>
+          <button 
+            onClick={() => setSidebarTab('audio')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ${sidebarTab === 'audio' ? 'text-indigo-600 bg-white border-b-2 border-indigo-600' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
+          >
+            3. Audio
+          </button>
+        </div>
 
-          {/* Input */}
-          <div className="space-y-3 flex-1 flex flex-col">
-            <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-              <Type className="w-4 h-4" /> Content
-            </Label>
-            <Textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              className="w-full flex-1 min-h-[200px] font-mono text-sm resize-none"
-              placeholder="Enter your text here..."
-            />
-            
-            <div className="pt-2 shrink-0">
-              <Label className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-                <AtSign className="w-3 h-3" /> Watermark / Credit
-              </Label>
-              <input
-                type="text"
-                value={creditText}
-                onChange={(e) => setCreditText(e.target.value)}
-                placeholder="e.g. @yourhandle or website.com"
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                <Settings2 className="w-4 h-4" /> Settings
-              </Label>
-              <button 
-                onClick={() => setIsSmartMode(!isSmartMode)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold transition-all ${isSmartMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 ring-2 ring-indigo-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'}`}
-              >
-                <Sparkles className={`w-3 h-3 ${isSmartMode ? 'animate-pulse' : ''}`} />
-                {isSmartMode ? 'SMART MODE ON' : 'MANUAL MODE'}
-              </button>
-            </div>
-
-            {isSmartMode && (
-              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                <Wand2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                <div className="text-[10px] text-indigo-900 leading-relaxed">
-                  <p className="font-bold">AI Universal Autopilot is Active</p>
-                  <p>AI is automatically optimizing your theme, music, overlays, and timings for maximum viral potential.</p>
-                </div>
-              </div>
-            )}
-
-            <div className={`space-y-3 transition-opacity duration-300 ${isSmartMode ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Theme</Label>
-                <Select value={themeId} onValueChange={(val) => setThemeId(val as keyof typeof THEMES)} disabled={isSmartMode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(THEMES).map(([id, t]) => (
-                      <SelectItem key={id} value={id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Animation</Label>
-                <Select value={animationId} onValueChange={(val) => setAnimationId(val as keyof typeof ANIMATIONS)} disabled={isSmartMode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select animation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(ANIMATIONS).map(([id, a]) => (
-                      <SelectItem key={id} value={id}>{a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Background Music</Label>
-                <Select value={musicTrack} onValueChange={(val) => setMusicTrack(val as keyof typeof MUSIC_TRACKS)} disabled={isSmartMode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="No Music" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(MUSIC_TRACKS).map(([id, t]) => (
-                      <SelectItem key={id} value={id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* Appearance */}
-          <div className="space-y-4">
-            <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-              <Palette className="w-4 h-4" /> Appearance
-            </Label>
-
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Visual Overlay</Label>
-                <Select value={globalOverlay} onValueChange={setGlobalOverlay} disabled={isSmartMode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select overlay" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="waveform">Waveform</SelectItem>
-                    <SelectItem value="heatmap">Heatmap</SelectItem>
-                    <SelectItem value="warning">Warning Indicators</SelectItem>
-                    <SelectItem value="crt">CRT Monitor</SelectItem>
-                    <SelectItem value="matrix">Matrix Rain</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-zinc-500 mb-2 block">Primary Color</Label>
-                <div className={`flex gap-2 ${isSmartMode ? 'pointer-events-none' : ''}`}>
-                  {Object.entries(COLORS).map(([id, c]) => (
-                    <button
+        <div className="p-6 flex-1 flex flex-col gap-8 overflow-y-auto">
+          {sidebarTab === 'content' && (
+            <>
+              {/* Templates */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <LayoutTemplate className="w-4 h-4" /> Templates
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(TEMPLATES).map(([id, t]) => (
+                    <Button
                       key={id}
-                      onClick={() => setPrimaryColor(id as keyof typeof COLORS)}
-                      disabled={isSmartMode}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${primaryColor === id ? 'border-zinc-900 scale-110' : 'border-transparent hover:scale-110'}`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Background Style</Label>
-                <Select value={bgStyle} onValueChange={(val) => setBgStyle(val as keyof typeof BG_STYLES)} disabled={isSmartMode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select background" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(BG_STYLES).map(([id, name]) => (
-                      <SelectItem key={id} value={id}>{name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-zinc-500 mb-1 block">Aspect Ratio</Label>
-                <div className="flex rounded-md border border-zinc-200 overflow-hidden">
-                  {['9:16', '16:9'].map(ratio => (
-                    <button
-                      key={ratio}
-                      onClick={() => setAspectRatio(ratio as '9:16' | '16:9')}
-                      className={`flex-1 py-1.5 text-xs ${aspectRatio === ratio ? 'bg-indigo-100 text-indigo-700 font-medium' : 'bg-white hover:bg-zinc-50'}`}
+                      variant="outline"
+                      className="justify-start font-normal h-9 text-xs"
+                      onClick={() => setInputText(t.text)}
                     >
-                      {ratio}
-                    </button>
+                      {t.name}
+                    </Button>
                   ))}
                 </div>
               </div>
 
-              <div className={isSmartMode ? 'pointer-events-none opacity-80' : ''}>
-                <div className="flex justify-between items-center mb-1">
-                  <Label className="text-xs text-zinc-500 block">Font Scale</Label>
-                  <span className="text-[10px] font-mono text-indigo-600">{fontScale}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="300"
-                  step="5"
-                  value={fontScale}
-                  onChange={(e) => setFontScale(parseInt(e.target.value))}
-                  disabled={isSmartMode}
-                  className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              {/* Input */}
+              <div className="space-y-3 flex-1 flex flex-col min-h-[300px]">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <Type className="w-4 h-4" /> Script
+                </Label>
+                <Textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  className="w-full flex-1 font-mono text-sm resize-none border-zinc-200 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  placeholder="Enter your text here..."
                 />
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <Label className="text-xs text-zinc-500 block">Content Width</Label>
-                  <span className="text-[10px] font-mono text-indigo-600">{contentWidth}%</span>
-                </div>
+              <div className="pt-2 shrink-0">
+                <Label className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                  <AtSign className="w-3 h-3" /> Watermark / Credit
+                </Label>
                 <input
-                  type="range"
-                  min="60"
-                  max="100"
-                  step="1"
-                  value={contentWidth}
-                  onChange={(e) => setContentWidth(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  type="text"
+                  value={creditText}
+                  onChange={(e) => setCreditText(e.target.value)}
+                  placeholder="e.g. @yourhandle"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
+              </div>
+            </>
+          )}
+
+          {sidebarTab === 'style' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+              {/* Magic Styles */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-indigo-600">
+                  <Sparkles className="w-4 h-4" /> Magic Styles
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-indigo-50 border-indigo-100 hover:bg-indigo-100"
+                    onClick={() => {
+                      setThemeId('neon_nights');
+                      setAnimationId('viralPop');
+                      setGlobalOverlay('cybergrid');
+                      setPrimaryColor('cyan');
+                      setMusicTrack('techno');
+                    }}
+                  >
+                    <span className="font-bold">CYBER HACKER</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-amber-50 border-amber-100 hover:bg-amber-100"
+                    onClick={() => {
+                      setThemeId('industrial');
+                      setAnimationId('slideUp');
+                      setGlobalOverlay('warning');
+                      setPrimaryColor('amber');
+                      setMusicTrack('cinematic');
+                    }}
+                  >
+                    <span className="font-bold">CRITICAL ALERT</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-zinc-50 border-zinc-100 hover:bg-zinc-100"
+                    onClick={() => {
+                      setThemeId('minimal');
+                      setAnimationId('staggered');
+                      setGlobalOverlay('none');
+                      setPrimaryColor('indigo');
+                      setMusicTrack('lofi');
+                    }}
+                  >
+                    <span className="font-bold">ZEN CLEAN</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-blue-50 border-blue-100 hover:bg-blue-100"
+                    onClick={() => {
+                      setThemeId('oceanic');
+                      setAnimationId('blurReveal');
+                      setGlobalOverlay('waveform');
+                      setPrimaryColor('blue');
+                      setMusicTrack('ambient');
+                    }}
+                  >
+                    <span className="font-bold">DEEP CALM</span>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <Settings2 className="w-4 h-4" /> Visual Config
+                </Label>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Theme</Label>
+                    <Select value={themeId} onValueChange={(val) => setThemeId(val as keyof typeof THEMES)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select theme" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(THEMES).map(([id, t]) => (
+                          <SelectItem key={id} value={id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Animation</Label>
+                    <Select value={animationId} onValueChange={(val) => setAnimationId(val as keyof typeof ANIMATIONS)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select animation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ANIMATIONS).map(([id, a]) => (
+                          <SelectItem key={id} value={id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Visual Overlay</Label>
+                    <Select value={globalOverlay} onValueChange={setGlobalOverlay}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select overlay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="waveform">Waveform</SelectItem>
+                        <SelectItem value="heatmap">Heatmap</SelectItem>
+                        <SelectItem value="warning">Warning Indicators</SelectItem>
+                        <SelectItem value="crt">CRT Monitor</SelectItem>
+                        <SelectItem value="matrix">Matrix Rain</SelectItem>
+                        <SelectItem value="static">Static Noise</SelectItem>
+                        <SelectItem value="cinematic">Cinematic Bars</SelectItem>
+                        <SelectItem value="cybergrid">Cyber Grid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Background Style</Label>
+                    <Select value={bgStyle} onValueChange={(val) => setBgStyle(val as keyof typeof BG_STYLES)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select background" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(BG_STYLES).map(([id, name]) => (
+                          <SelectItem key={id} value={id}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <Palette className="w-4 h-4" /> Layout & Typography
+                </Label>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-2 block">Primary Color</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(COLORS).map(([id, c]) => (
+                        <button
+                          key={id}
+                          onClick={() => setPrimaryColor(id as keyof typeof COLORS)}
+                          className={`w-7 h-7 rounded-full border-2 transition-all ${primaryColor === id ? 'border-zinc-900 scale-110' : 'border-zinc-200 hover:scale-110'}`}
+                          style={{ backgroundColor: c.hex }}
+                          title={c.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Text Backdrop</Label>
+                    <Select value={textBackdrop} onValueChange={setTextBackdrop}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select backdrop" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="frosted">Frosted Glass</SelectItem>
+                        <SelectItem value="pill">Solid Pill</SelectItem>
+                        <SelectItem value="shadow">Heavy Shadow</SelectItem>
+                        <SelectItem value="outline">Text Outline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <Label className="text-xs text-zinc-500 block">Font Scale</Label>
+                      <span className="text-[10px] font-mono text-indigo-600">{fontScale}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="300"
+                      step="5"
+                      value={fontScale}
+                      onChange={(e) => setFontScale(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <Label className="text-xs text-zinc-500 block">Content Width</Label>
+                      <span className="text-[10px] font-mono text-indigo-600">{contentWidth}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="60"
+                      max="100"
+                      step="1"
+                      value={contentWidth}
+                      onChange={(e) => setContentWidth(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <Download className="w-4 h-4" /> Export Config
+                </Label>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Aspect Ratio</Label>
+                    <div className="flex rounded-md border border-zinc-200 overflow-hidden">
+                      {['9:16', '16:9'].map(ratio => (
+                        <button
+                          key={ratio}
+                          onClick={() => setAspectRatio(ratio as '9:16' | '16:9')}
+                          className={`flex-1 py-2 text-xs font-bold ${aspectRatio === ratio ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}
+                        >
+                          {ratio}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {sidebarTab === 'audio' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-4">
+                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                  <Video className="w-4 h-4" /> Audio Settings
+                </Label>
+                
+                <div className="space-y-5">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Background Music</Label>
+                    <Select value={musicTrack} onValueChange={(val) => setMusicTrack(val as keyof typeof MUSIC_TRACKS)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="No Music" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(MUSIC_TRACKS).map(([id, t]) => (
+                          <SelectItem key={id} value={id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label className="text-xs text-zinc-500 block">Music Volume</Label>
+                      <span className="text-[10px] font-mono text-indigo-600">{Math.round(musicVolume * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={musicVolume}
+                      onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                    <input
+                      type="checkbox"
+                      id="tts-toggle"
+                      checked={enableTTS}
+                      onChange={(e) => setEnableTTS(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div className="flex flex-col">
+                      <Label htmlFor="tts-toggle" className="text-sm cursor-pointer select-none font-bold text-zinc-700">
+                        A.I. Voiceover (TTS)
+                      </Label>
+                      <span className="text-[10px] text-zinc-400">Narration based on your script</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Timeline Editor on Mobile */}
         <div className="md:hidden border-t border-zinc-200 mt-auto shrink-0">
           <TimelineEditor
             slides={slides}
-            setSlides={setSlides}
             currentIndex={currentIndex}
             setCurrentIndex={setCurrentIndex}
+            setSlides={setSlides}
           />
         </div>
       </div>
 
       {/* Right Panel - Preview & Timeline */}
-      <div className={`w-full md:flex-1 flex-col h-full overflow-hidden bg-zinc-100 shrink-0 ${mobileTab === 'edit' ? 'hidden md:flex' : 'flex'}`}>
+      <div 
+        className={`w-full md:flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 shrink-0 ${mobileTab === 'edit' ? 'hidden md:flex' : 'flex'} ${isFullscreen ? 'bg-black' : 'bg-zinc-100'}`}
+        ref={containerRef}
+      >
         <div 
-          className={`flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0 transition-all ${isFullscreen ? 'p-0 bg-black' : 'p-4 md:p-8'}`} 
-          ref={containerRef}
+          className={`flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0 transition-all ${isFullscreen ? 'p-0' : 'p-4 md:p-8'}`} 
         >
           {/* Preview Canvas */}
-        <div
-          className={`relative overflow-hidden flex flex-col ${bgClass} transition-all duration-500 animate-bg-pan shrink-0 ${isFullscreen ? 'rounded-none shadow-none' : 'rounded-xl md:rounded-2xl shadow-2xl'}`}
-          style={getCanvasStyle()}
-          ref={previewRef}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
+          <div
+            className={`relative overflow-hidden flex flex-col ${bgClass} transition-all duration-500 animate-bg-pan shrink-0 ${isFullscreen ? 'rounded-none shadow-none' : 'rounded-xl md:rounded-2xl shadow-2xl'}`}
+            style={getCanvasStyle()}
+            ref={previewRef}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
           {/* Progress Bar */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-black/20 z-50 flex gap-1 p-2">
             {slides.map((_, i) => (
@@ -626,9 +815,17 @@ export default function App() {
             ))}
           </div>
 
+          {/* Top Progress Bar for Viral Videos */}
+          <div className="absolute top-0 left-0 w-full h-[3px] bg-zinc-900/40 z-[100]">
+            <div 
+              className="h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all duration-300 ease-linear rounded-r-full"
+              style={{ width: `${(currentIndex / Math.max(1, slides.length - 1)) * 100}%` }}
+            />
+          </div>
+
           {/* Slide Content */}
           <div className="flex-1 relative overflow-hidden">
-            <EngineeringOverlays type={activeOverlay} />
+            <EngineeringOverlays type={activeOverlay} theme={theme} />
             <AnimatePresence mode="wait">
               {slides.length > 0 && (
                 <SlideRenderer
@@ -640,6 +837,7 @@ export default function App() {
                   primaryColor={primaryColor}
                   fontScale={fontScale}
                   contentWidth={contentWidth}
+                  textBackdrop={textBackdrop}
                 />
               )}
             </AnimatePresence>
@@ -655,7 +853,11 @@ export default function App() {
           )}
         </div>
 
-        <BackgroundMusic trackId={musicTrack} isPlaying={isPlaying || countdown !== null} />
+        <BackgroundMusic 
+          trackId={musicTrack} 
+          isPlaying={isPlaying || countdown !== null} 
+          volume={musicVolume} 
+        />
 
         {/* Countdown Overlay */}
         {countdown !== null && (
@@ -665,9 +867,10 @@ export default function App() {
             </div>
           </div>
         )}
+        </div>
 
         {/* Playback Controls */}
-        <div className={`flex-none flex items-center justify-center gap-2 md:gap-4 bg-white px-4 py-3 md:px-6 md:py-3 border-t border-zinc-200 ${isFullscreen ? 'absolute bottom-8 opacity-0 hover:opacity-100 transition-opacity left-1/2 -translate-x-1/2 rounded-full shadow-lg' : ''}`}>
+        <div className={`flex-none flex items-center justify-center gap-2 md:gap-4 bg-white px-4 py-3 md:px-6 md:py-3 border-t border-zinc-200 ${isFullscreen ? 'absolute bottom-32 opacity-20 hover:opacity-100 transition-opacity left-1/2 -translate-x-1/2 rounded-full shadow-lg z-[500]' : 'z-50'}`}>
           <Button
             variant="ghost"
             size="icon"
@@ -679,7 +882,18 @@ export default function App() {
           </Button>
 
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => {
+              // Unlock audio context for browser autoplay policy
+              try {
+                const tmpCtx = new AudioContext();
+                tmpCtx.resume().then(() => tmpCtx.close()).catch(() => {});
+              } catch(e) {}
+              
+              if (!isPlaying && currentIndex === slides.length - 1) {
+                setCurrentIndex(0);
+              }
+              setIsPlaying(!isPlaying);
+            }}
             className="w-12 h-12 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors shadow-md"
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
@@ -712,7 +926,7 @@ export default function App() {
             onExportVideo={initiateExport}
             onExportImage={handleExportImages}
             isRecording={isRecording}
-            disabled={countdown !== null}
+            disabled={isPlaying}
           />
 
           <Button
@@ -733,7 +947,7 @@ export default function App() {
             <div className="flex justify-between items-center text-xs font-semibold text-zinc-700">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                Recording {exportFormat.toUpperCase()}...
+                Capturing Video...
               </span>
               <span>{Math.round(recordingProgress)}%</span>
             </div>
@@ -745,30 +959,47 @@ export default function App() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Timeline Editor on Desktop */}
-      <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
-        <TimelineEditor
-          slides={slides}
-          setSlides={setSlides}
-          currentIndex={currentIndex}
-          setCurrentIndex={setCurrentIndex}
-        />
+        {/* Transcoding Progress Bar */}
+        {isTranscoding && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-64 bg-white/90 backdrop-blur-sm rounded-full shadow-lg p-3 flex flex-col gap-2 z-[60]">
+            <div className="flex justify-between items-center text-xs font-semibold text-zinc-700">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                Processing {exportFormat.toUpperCase()}...
+              </span>
+              <span>{Math.round(transcodeProgress)}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-zinc-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-indigo-500 transition-all duration-300"
+                style={{ width: `${transcodeProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Export Guide Modal */}
+        {showGuide && (
+          <RecordingGuide
+            format={exportFormat}
+            onConfirm={() => {
+              setShowGuide(false);
+              startRecording();
+            }}
+            onCancel={() => setShowGuide(false)}
+          />
+        )}
+
+        {/* Timeline Editor on Desktop */}
+        <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
+          <TimelineEditor
+            slides={slides}
+            currentIndex={currentIndex}
+            setCurrentIndex={setCurrentIndex}
+          />
+        </div>
       </div>
     </div>
-
-    {/* Export Guide Modal */}
-    {showGuide && (
-      <RecordingGuide
-        format={exportFormat}
-        onConfirm={() => {
-          setShowGuide(false);
-          startRecording();
-        }}
-        onCancel={() => setShowGuide(false)}
-      />
-    )}
-  </div>
-);
+  );
 }
