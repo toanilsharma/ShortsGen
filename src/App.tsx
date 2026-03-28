@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Download, Maximize, LayoutTemplate, Settings2, Type, Palette, Video, AtSign } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Download, Maximize, LayoutTemplate, Settings2, Type, Palette, Video, AtSign, Sparkles, Wand2 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 
 import { THEMES, ANIMATIONS, TEMPLATES, COLORS, BG_STYLES } from './lib/ThemeConfig';
+import { getSmartConfiguration, calculateSlideDuration } from './lib/SmartLogic';
 import SlideRenderer from './components/SlideRenderer';
 import TimelineEditor from './components/TimelineEditor';
 import EngineeringOverlays from './components/EngineeringOverlays';
 import BackgroundMusic, { MUSIC_TRACKS } from './components/BackgroundMusic';
+import RecordingGuide from './components/RecordingGuide';
+import ExportOptions from './components/ExportOptions';
 
 import { Button } from './components/ui/button';
 import { Textarea } from './components/ui/textarea';
@@ -44,9 +47,10 @@ function parseTextToSlides(text: string): Slide[] {
     if (index === 0 || line.toLowerCase().startsWith('title:')) {
       type = 'title';
       content = line.replace(/^title:\s*/i, '');
-    } else if (index === processedLines.length - 1 && line.toLowerCase().startsWith('insight:')) {
-      type = 'insight';
-      content = line.replace(/^insight:\s*/i, '');
+    } else if (index === processedLines.length - 1) {
+      // Last slide is always a title by default for focus & motivation
+      type = 'title';
+      content = line.replace(/^(insight|title):\s*/i, '');
     }
     return { id: `slide-${Date.now()}-${index}`, type, content };
   });
@@ -74,6 +78,9 @@ export default function App() {
   const [creditText, setCreditText] = useState('@slidegen');
   const [musicTrack, setMusicTrack] = useState<keyof typeof MUSIC_TRACKS>('none');
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'webm'>('mp4');
+  const [isSmartMode, setIsSmartMode] = useState(true); // Default to Smart Mode for world-class experience
 
   const previewRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,6 +106,26 @@ export default function App() {
     setSlides(parseTextToSlides(inputText));
     setCurrentIndex(0);
   }, [inputText]);
+
+  // Smart Mode Engine
+  useEffect(() => {
+    if (isSmartMode && inputText) {
+      const smart = getSmartConfiguration(inputText);
+      setThemeId(smart.themeId);
+      setAnimationId(smart.animationId);
+      setPrimaryColor(smart.primaryColor);
+      setBgStyle(smart.bgStyle);
+      setMusicTrack(smart.musicTrackId as any);
+      setGlobalOverlay(smart.overlayId);
+      setFontScale(smart.fontScale);
+      
+      // Update durations for all slides
+      setSlides(prevSlides => prevSlides.map(slide => ({
+        ...slide,
+        duration: calculateSlideDuration(slide.content, slide.type === 'title')
+      })));
+    }
+  }, [isSmartMode, inputText]);
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -134,25 +161,27 @@ export default function App() {
   const startRecording = useCallback(async () => {
     if (!previewRef.current || slides.length === 0) return;
     
-    // Start countdown
-    for (let i = 3; i > 0; i--) {
-      setCountdown(i);
-      await new Promise(r => setTimeout(r, 1000));
+    // Determine MIME type
+    let mimeType = 'video/webm;codecs=vp9';
+    if (exportFormat === 'mp4') {
+      const mp4Types = [
+        'video/mp4;codecs=avc1',
+        'video/mp4',
+        'video/x-matroska;codecs=avc1'
+      ];
+      const supported = mp4Types.find(type => MediaRecorder.isTypeSupported(type));
+      if (supported) mimeType = supported;
+    } else {
+      const webmTypes = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm'
+      ];
+      const supported = webmTypes.find(type => MediaRecorder.isTypeSupported(type));
+      if (supported) mimeType = supported;
     }
-    setCountdown(null);
-
-    setIsRecording(true);
-    setRecordingProgress(0);
-    setCurrentIndex(0);
-    chunksRef.current = [];
 
     try {
-      // 1. Capture the DOM element as a canvas stream
-      // Note: This is a simplified approach. For perfect high-res video export 
-      // of DOM elements, a more complex setup with a headless browser or 
-      // frame-by-frame rendering to a hidden canvas is usually required.
-      // Here we use a basic approach that captures the visible screen area.
-      
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: "browser",
@@ -160,10 +189,19 @@ export default function App() {
         audio: false,
       });
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
-      });
+      // Start Countdown after permission is granted
+      for (let i = 3; i > 0; i--) {
+        setCountdown(i);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      setCountdown(null);
 
+      setIsRecording(true);
+      setRecordingProgress(0);
+      setCurrentIndex(0);
+      chunksRef.current = [];
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (e) => {
@@ -173,32 +211,38 @@ export default function App() {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        // Use the actual recording format for the blob
+        const finalType = exportFormat === 'mp4' ? 'video/mp4' : 'video/webm';
+        const blob = new Blob(chunksRef.current, { type: finalType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         document.body.appendChild(a);
         a.style.display = 'none';
         a.href = url;
-        a.download = 'slidegen-export.webm';
+        a.download = `shortsgen-export-${Date.now()}.${exportFormat}`;
         a.click();
+        
         window.URL.revokeObjectURL(url);
         setIsRecording(false);
         setRecordingProgress(0);
-        
-        // Stop all tracks to end screen sharing
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start(100); // Collect 100ms chunks
-      
-      // Start playback automatically
+      mediaRecorder.start(100);
       setIsPlaying(true);
 
     } catch (err) {
       console.error("Error starting recording:", err);
       setIsRecording(false);
+      // Ensure we stop the countdown if it failed
+      setCountdown(null);
     }
-  }, [slides.length]);
+  }, [slides.length, exportFormat]);
+
+  const initiateExport = (format: 'mp4' | 'webm') => {
+    setExportFormat(format);
+    setShowGuide(true);
+  };
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -372,14 +416,33 @@ export default function App() {
 
           {/* Settings */}
           <div className="space-y-4">
-            <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-              <Settings2 className="w-4 h-4" /> Settings
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
+                <Settings2 className="w-4 h-4" /> Settings
+              </Label>
+              <button 
+                onClick={() => setIsSmartMode(!isSmartMode)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold transition-all ${isSmartMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 ring-2 ring-indigo-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'}`}
+              >
+                <Sparkles className={`w-3 h-3 ${isSmartMode ? 'animate-pulse' : ''}`} />
+                {isSmartMode ? 'SMART MODE ON' : 'MANUAL MODE'}
+              </button>
+            </div>
 
-            <div className="space-y-3">
+            {isSmartMode && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                <Wand2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="text-[10px] text-indigo-900 leading-relaxed">
+                  <p className="font-bold">AI Universal Autopilot is Active</p>
+                  <p>AI is automatically optimizing your theme, music, overlays, and timings for maximum viral potential.</p>
+                </div>
+              </div>
+            )}
+
+            <div className={`space-y-3 transition-opacity duration-300 ${isSmartMode ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
               <div>
                 <Label className="text-xs text-zinc-500 mb-1 block">Theme</Label>
-                <Select value={themeId} onValueChange={(val) => setThemeId(val as keyof typeof THEMES)}>
+                <Select value={themeId} onValueChange={(val) => setThemeId(val as keyof typeof THEMES)} disabled={isSmartMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select theme" />
                   </SelectTrigger>
@@ -393,7 +456,7 @@ export default function App() {
 
               <div>
                 <Label className="text-xs text-zinc-500 mb-1 block">Animation</Label>
-                <Select value={animationId} onValueChange={(val) => setAnimationId(val as keyof typeof ANIMATIONS)}>
+                <Select value={animationId} onValueChange={(val) => setAnimationId(val as keyof typeof ANIMATIONS)} disabled={isSmartMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select animation" />
                   </SelectTrigger>
@@ -407,7 +470,7 @@ export default function App() {
 
               <div>
                 <Label className="text-xs text-zinc-500 mb-1 block">Background Music</Label>
-                <Select value={musicTrack} onValueChange={(val) => setMusicTrack(val as keyof typeof MUSIC_TRACKS)}>
+                <Select value={musicTrack} onValueChange={(val) => setMusicTrack(val as keyof typeof MUSIC_TRACKS)} disabled={isSmartMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="No Music" />
                   </SelectTrigger>
@@ -430,7 +493,7 @@ export default function App() {
             <div className="space-y-3">
               <div>
                 <Label className="text-xs text-zinc-500 mb-1 block">Visual Overlay</Label>
-                <Select value={globalOverlay} onValueChange={setGlobalOverlay}>
+                <Select value={globalOverlay} onValueChange={setGlobalOverlay} disabled={isSmartMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select overlay" />
                   </SelectTrigger>
@@ -447,11 +510,12 @@ export default function App() {
 
               <div>
                 <Label className="text-xs text-zinc-500 mb-2 block">Primary Color</Label>
-                <div className="flex gap-2">
+                <div className={`flex gap-2 ${isSmartMode ? 'pointer-events-none' : ''}`}>
                   {Object.entries(COLORS).map(([id, c]) => (
                     <button
                       key={id}
                       onClick={() => setPrimaryColor(id as keyof typeof COLORS)}
+                      disabled={isSmartMode}
                       className={`w-8 h-8 rounded-full border-2 transition-all ${primaryColor === id ? 'border-zinc-900 scale-110' : 'border-transparent hover:scale-110'}`}
                       style={{ backgroundColor: c.hex }}
                       title={c.name}
@@ -462,7 +526,7 @@ export default function App() {
 
               <div>
                 <Label className="text-xs text-zinc-500 mb-1 block">Background Style</Label>
-                <Select value={bgStyle} onValueChange={(val) => setBgStyle(val as keyof typeof BG_STYLES)}>
+                <Select value={bgStyle} onValueChange={(val) => setBgStyle(val as keyof typeof BG_STYLES)} disabled={isSmartMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select background" />
                   </SelectTrigger>
@@ -489,7 +553,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div>
+              <div className={isSmartMode ? 'pointer-events-none opacity-80' : ''}>
                 <div className="flex justify-between items-center mb-1">
                   <Label className="text-xs text-zinc-500 block">Font Scale</Label>
                   <span className="text-[10px] font-mono text-indigo-600">{fontScale}%</span>
@@ -501,6 +565,7 @@ export default function App() {
                   step="5"
                   value={fontScale}
                   onChange={(e) => setFontScale(parseInt(e.target.value))}
+                  disabled={isSmartMode}
                   className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                 />
               </div>
@@ -643,15 +708,12 @@ export default function App() {
             <Download className="w-5 h-5" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={isRecording ? stopRecording : startRecording}
-            className={`${isRecording ? 'text-red-500 hover:text-red-600 animate-pulse' : 'text-zinc-500 hover:text-indigo-600'}`}
-            title={isRecording ? "Stop Recording" : "Export Video (WebM)"}
-          >
-            <Video className="w-5 h-5" />
-          </Button>
+          <ExportOptions
+            onExportVideo={initiateExport}
+            onExportImage={handleExportImages}
+            isRecording={isRecording}
+            disabled={countdown !== null}
+          />
 
           <Button
             variant="ghost"
@@ -671,7 +733,7 @@ export default function App() {
             <div className="flex justify-between items-center text-xs font-semibold text-zinc-700">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                Recording Video...
+                Recording {exportFormat.toUpperCase()}...
               </span>
               <span>{Math.round(recordingProgress)}%</span>
             </div>
@@ -683,18 +745,30 @@ export default function App() {
             </div>
           </div>
         )}
-        </div>
+      </div>
 
-        {/* Timeline Editor on Desktop */}
-        <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
-          <TimelineEditor
-            slides={slides}
-            setSlides={setSlides}
-            currentIndex={currentIndex}
-            setCurrentIndex={setCurrentIndex}
-          />
-        </div>
+      {/* Timeline Editor on Desktop */}
+      <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
+        <TimelineEditor
+          slides={slides}
+          setSlides={setSlides}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+        />
       </div>
     </div>
-  );
+
+    {/* Export Guide Modal */}
+    {showGuide && (
+      <RecordingGuide
+        format={exportFormat}
+        onConfirm={() => {
+          setShowGuide(false);
+          startRecording();
+        }}
+        onCancel={() => setShowGuide(false)}
+      />
+    )}
+  </div>
+);
 }
