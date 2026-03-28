@@ -777,14 +777,16 @@ export default function App() {
         </div>
 
         {/* Timeline Editor on Mobile */}
-        <div className="md:hidden border-t border-zinc-200 mt-auto shrink-0">
-          <TimelineEditor
-            slides={slides}
-            currentIndex={currentIndex}
-            setCurrentIndex={setCurrentIndex}
-            setSlides={setSlides}
-          />
-        </div>
+        {!isFullscreen && (
+          <div className="md:hidden border-t border-zinc-200 mt-auto shrink-0">
+            <TimelineEditor
+              slides={slides}
+              currentIndex={currentIndex}
+              setCurrentIndex={setCurrentIndex}
+              setSlides={setSlides}
+            />
+          </div>
+        )}
       </div>
 
       {/* Right Panel - Preview & Timeline */}
@@ -992,13 +994,15 @@ export default function App() {
         )}
 
         {/* Timeline Editor on Desktop */}
-        <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
-          <TimelineEditor
-            slides={slides}
-            currentIndex={currentIndex}
-            setCurrentIndex={setCurrentIndex}
-          />
-        </div>
+        {!isFullscreen && (
+          <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
+            <TimelineEditor
+              slides={slides}
+              currentIndex={currentIndex}
+              setCurrentIndex={setCurrentIndex}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
