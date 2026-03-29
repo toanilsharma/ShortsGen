@@ -313,6 +313,8 @@ export default function App() {
         const finalType = exportFormat === 'mp4' ? 'video/mp4' : 'video/webm';
         let blob = new Blob(chunksRef.current, { type: finalType });
         
+        let finalExt = exportFormat === 'pngs' ? 'zip' : exportFormat;
+
         if (exportFormat !== 'webm') {
           setIsTranscoding(true);
           try {
@@ -324,23 +326,26 @@ export default function App() {
           } catch (e) {
             console.error("Transcoding failed:", e);
             alert("Failed to transcode video. Downloading raw WebM instead.");
-            // If it failed, don't break the whole app, just fallback to webm.
+            finalExt = 'webm';
           } finally {
             setIsTranscoding(false);
             setTranscodeProgress(0);
           }
         }
 
-        const ext = exportFormat === 'pngs' ? 'zip' : exportFormat;
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         document.body.appendChild(a);
         a.style.display = 'none';
         a.href = url;
-        a.download = `shortsgen-export-${Date.now()}.${ext}`;
+        a.download = `shortsgen-export-${Date.now()}.${finalExt}`;
         a.click();
         
-        window.URL.revokeObjectURL(url);
+        // Android Chrome download managers race condition fix
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 3500);
       };
 
       mediaRecorder.start(100);
