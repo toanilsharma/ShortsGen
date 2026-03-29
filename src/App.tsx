@@ -411,7 +411,7 @@ export default function App() {
       </div>
 
       {/* Left Panel - Controls */}
-      <div className={`w-full md:w-[400px] bg-white border-r border-zinc-200 flex-col h-full overflow-y-auto shrink-0 ${mobileTab === 'preview' ? 'hidden md:flex' : 'flex'} ${isFullscreen ? 'hidden' : ''}`}>
+      <div className={`w-full md:w-[400px] bg-white border-r border-zinc-200 flex-col flex-1 md:flex-none md:h-full overflow-hidden min-h-0 md:shrink-0 ${mobileTab === 'preview' ? 'hidden md:flex' : 'flex'} ${isFullscreen ? 'hidden' : ''}`}>
         <div className="p-4 md:p-6 border-b border-zinc-200 shrink-0">
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <LayoutTemplate className="w-6 h-6 text-indigo-600" />
@@ -793,11 +793,11 @@ export default function App() {
 
       {/* Right Panel - Preview & Timeline */}
       <div 
-        className={`w-full md:flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 shrink-0 ${mobileTab === 'edit' ? 'hidden md:flex' : 'flex'} ${isFullscreen ? 'bg-black' : 'bg-zinc-100'}`}
-        ref={containerRef}
+        className={`w-full md:flex-1 flex flex-col flex-1 md:h-full overflow-hidden transition-all duration-300 min-h-0 md:shrink-0 ${mobileTab === 'edit' ? 'hidden md:flex' : 'flex'} ${isFullscreen ? 'bg-black' : 'bg-zinc-100'}`}
       >
         <div 
           className={`flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0 transition-all ${isFullscreen ? 'p-0' : 'p-4 md:p-8'}`} 
+          ref={containerRef}
         >
           {/* Preview Canvas */}
           <div
