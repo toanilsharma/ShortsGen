@@ -356,27 +356,17 @@ interface BackgroundMusicProps {
   volume?: number;
 }
 
+import { getAudioContext, unlockAudio } from '../lib/AudioEngine';
+
 export default function BackgroundMusic({ trackId, isPlaying, volume = 0.5 }: BackgroundMusicProps) {
-  const ctxRef = useRef<AudioContext | null>(null);
-  const masterGainRef = useRef<GainNode | null>(null);
   const stopFnRef = useRef<(() => void) | null>(null);
   const activeTrackRef = useRef<string>('none');
 
   useEffect(() => {
-    // Track if this effect instance has been cleaned up
-    let cancelled = false;
-
     // Stop any currently playing track
     if (stopFnRef.current) {
       stopFnRef.current();
       stopFnRef.current = null;
-    }
-
-    // Close old context if track changed
-    if (activeTrackRef.current !== trackId && ctxRef.current) {
-      ctxRef.current.close().catch(() => {});
-      ctxRef.current = null;
-      masterGainRef.current = null;
     }
 
     activeTrackRef.current = trackId;
@@ -388,48 +378,37 @@ export default function BackgroundMusic({ trackId, isPlaying, volume = 0.5 }: Ba
     const generator = TRACK_GENERATORS[trackId];
     if (!generator) return;
 
-    // Create audio context on user gesture (play click)
-    const ctx = new AudioContext();
-    const masterGain = ctx.createGain();
+    // Get the shared audio context
+    const { ctx, masterGain } = getAudioContext();
+    if (!ctx || !masterGain) return; // Context might not be unlocked yet
+
+    // Set initial volume
     masterGain.gain.setValueAtTime(volume, ctx.currentTime);
-    masterGain.connect(ctx.destination);
 
-    ctxRef.current = ctx;
-    masterGainRef.current = masterGain;
+    // If context is suspended, try resuming (though it should ideally 
+    // be unlocked by user interaction in App.tsx before we reach here)
+    if (ctx.state === 'suspended') {
+        unlockAudio();
+    }
 
-    // Resume context (required for Chrome autoplay policy)
-    ctx.resume().then(() => {
-      // Guard: if effect was cleaned up while waiting for resume, don't start
-      if (cancelled) {
-        ctx.close().catch(() => {});
-        return;
-      }
-      if (activeTrackRef.current === trackId) {
-        stopFnRef.current = generator(ctx, masterGain);
-      }
-    }).catch(() => {});
+    // Start playing
+    stopFnRef.current = generator(ctx, masterGain);
 
     return () => {
-      cancelled = true;
       if (stopFnRef.current) {
         stopFnRef.current();
         stopFnRef.current = null;
       }
-      // Only close context if it's still the current one
-      if (ctxRef.current === ctx) {
-        ctx.close().catch(() => {});
-        ctxRef.current = null;
-        masterGainRef.current = null;
-      }
     };
   }, [trackId, isPlaying]);
 
-  // Update volume in real-time without restarting the track
+  // Update volume in real-time
   useEffect(() => {
-    if (masterGainRef.current && ctxRef.current && ctxRef.current.state === 'running') {
-      masterGainRef.current.gain.linearRampToValueAtTime(
+    const { ctx, masterGain } = getAudioContext();
+    if (masterGain && ctx && ctx.state === 'running') {
+      masterGain.gain.linearRampToValueAtTime(
         volume, 
-        ctxRef.current.currentTime + 0.1
+        ctx.currentTime + 0.1
       );
     }
   }, [volume]);

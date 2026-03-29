@@ -4,11 +4,13 @@ import { AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 
 import { THEMES, ANIMATIONS, TEMPLATES, COLORS, BG_STYLES } from './lib/ThemeConfig';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import SlideRenderer from './components/SlideRenderer';
 import TimelineEditor from './components/TimelineEditor';
 import EngineeringOverlays from './components/EngineeringOverlays';
 import { transcodeVideo, extractPngFrames } from './lib/Transcoder';
 import BackgroundMusic, { MUSIC_TRACKS } from './components/BackgroundMusic';
+import { unlockAudio } from './lib/AudioEngine';
 import RecordingGuide from './components/RecordingGuide';
 import ExportOptions from './components/ExportOptions';
 
@@ -872,7 +874,7 @@ export default function App() {
         </div>
 
         {/* Playback Controls */}
-        <div className={`flex-none flex items-center justify-center gap-2 md:gap-4 bg-white px-4 py-3 md:px-6 md:py-3 border-t border-zinc-200 ${isFullscreen ? 'absolute bottom-32 opacity-20 hover:opacity-100 transition-opacity left-1/2 -translate-x-1/2 rounded-full shadow-lg z-[500]' : 'z-50'}`}>
+        <div className={`flex-none flex items-center justify-center gap-1 sm:gap-2 md:gap-4 bg-white px-2 sm:px-4 py-2 sm:py-3 md:px-6 md:py-3 border-t border-zinc-200 ${isFullscreen ? 'absolute bottom-16 md:bottom-32 opacity-90 md:opacity-20 md:hover:opacity-100 transition-opacity left-1/2 -translate-x-1/2 rounded-full shadow-lg z-[500] w-[95%] sm:w-auto max-w-md' : 'z-50'}`}>
           <Button
             variant="ghost"
             size="icon"
@@ -887,8 +889,7 @@ export default function App() {
             onClick={() => {
               // Unlock audio context for browser autoplay policy
               try {
-                const tmpCtx = new AudioContext();
-                tmpCtx.resume().then(() => tmpCtx.close()).catch(() => {});
+                unlockAudio();
               } catch(e) {}
               
               if (!isPlaying && currentIndex === slides.length - 1) {
@@ -993,7 +994,7 @@ export default function App() {
           />
         )}
 
-        {/* Timeline Editor on Desktop */}
+    {/* Timeline Editor on Desktop */}
         {!isFullscreen && (
           <div className="hidden md:block flex-none border-t border-zinc-200 bg-white">
             <TimelineEditor
@@ -1004,6 +1005,8 @@ export default function App() {
           </div>
         )}
       </div>
+
+      <PWAInstallPrompt />
     </div>
   );
 }
