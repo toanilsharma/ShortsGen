@@ -2,9 +2,10 @@
 
 let sharedAudioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let streamDestination: MediaStreamAudioDestinationNode | null = null;
 
 export const getAudioContext = () => {
-  return { ctx: sharedAudioContext, masterGain };
+  return { ctx: sharedAudioContext, masterGain, streamDestination };
 };
 
 export const unlockAudio = (): boolean => {
@@ -14,7 +15,9 @@ export const unlockAudio = (): boolean => {
       if (Ctx) {
         sharedAudioContext = new Ctx();
         masterGain = sharedAudioContext.createGain();
+        streamDestination = sharedAudioContext.createMediaStreamDestination();
         masterGain.connect(sharedAudioContext.destination);
+        masterGain.connect(streamDestination);
       }
     }
     

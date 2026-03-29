@@ -10,7 +10,7 @@ import TimelineEditor from './components/TimelineEditor';
 import EngineeringOverlays from './components/EngineeringOverlays';
 import { transcodeVideo, extractPngFrames } from './lib/Transcoder';
 import BackgroundMusic, { MUSIC_TRACKS } from './components/BackgroundMusic';
-import { unlockAudio } from './lib/AudioEngine';
+import { unlockAudio, getAudioContext } from './lib/AudioEngine';
 import RecordingGuide from './components/RecordingGuide';
 import ExportOptions from './components/ExportOptions';
 
@@ -192,6 +192,9 @@ export default function App() {
   const startRecording = useCallback(async () => {
     if (!previewRef.current || slides.length === 0) return;
     
+    // Unlock audio immediately on user click to ensure music works on mobile
+    try { unlockAudio(); } catch(e) {}
+
     // Determine MIME type
     let mimeType = 'video/webm;codecs=vp9';
     if (exportFormat === 'mp4') {
@@ -212,15 +215,72 @@ export default function App() {
       if (supported) mimeType = supported;
     }
 
+    let stream: MediaStream;
+    let fallbackLoopActive = false;
+
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: "browser",
         },
         audio: false,
       });
+    } catch (err) {
+      console.warn("getDisplayMedia not supported or denied (likely Mobile Chrome). Using canvas fallback recording.", err);
+      
+      const canvas = document.createElement('canvas');
+      const isVertical = aspectRatio === '9:16';
+      // Use moderate resolution to maintain performance on mobile
+      canvas.width = isVertical ? 720 : 1280;
+      canvas.height = isVertical ? 1280 : 720;
+      const ctx = canvas.getContext('2d');
+      
+      // Attempt to capture at 30fps
+      stream = canvas.captureStream(30);
+      fallbackLoopActive = true;
 
-      // Start Countdown after permission is granted
+      const drawFrame = async () => {
+        if (!fallbackLoopActive || !previewRef.current) return;
+        try {
+          // Temporarily disable any heavy box-shadows or border-radius for cleaner html2canvas rendering
+          const originalStyle = previewRef.current.style.cssText;
+          if (isFullscreen) {
+             previewRef.current.style.borderRadius = '0px';
+          }
+          const frameCanvas = await html2canvas(previewRef.current, { 
+            scale: 1.5, 
+            useCORS: true, 
+            backgroundColor: '#000000',
+            logging: false
+          });
+          previewRef.current.style.cssText = originalStyle;
+
+          if (ctx) {
+             ctx.drawImage(frameCanvas, 0, 0, canvas.width, canvas.height);
+          }
+        } catch(e) {}
+        
+        if (fallbackLoopActive) {
+          // Loop approx at 24fps target with setTimeout to not constantly block main thread
+          setTimeout(drawFrame, 41); 
+        }
+      };
+      drawFrame();
+
+      // We attach a custom stoppable property to the stream
+      (stream as any).stopFallback = () => { fallbackLoopActive = false; };
+    }
+
+    try {
+      // Add audio tracks to the video stream!
+      const { streamDestination } = getAudioContext();
+      if (streamDestination && streamDestination.stream) {
+        streamDestination.stream.getAudioTracks().forEach(track => {
+          stream.addTrack(track);
+        });
+      }
+
+      // Start Countdown after permission/stream is granted
       for (let i = 3; i > 0; i--) {
         setCountdown(i);
         await new Promise(r => setTimeout(r, 1000));
@@ -245,6 +305,9 @@ export default function App() {
         setIsRecording(false);
         setRecordingProgress(0);
         stream.getTracks().forEach(track => track.stop());
+        if ((stream as any).stopFallback) {
+          (stream as any).stopFallback();
+        }
 
         // Use the actual recording format for the blob initially before transcoding
         const finalType = exportFormat === 'mp4' ? 'video/mp4' : 'video/webm';
