@@ -17,7 +17,7 @@ interface TimelineEditorProps {
   setSlides?: (slides: Slide[]) => void;
 }
 
-function SlideItem({ slide, isActive, index, onClick, onDurationChange }: any) {
+function SlideItem({ slide, isActive, index, onClick }: any) {
   return (
     <div
       className={`relative flex flex-col min-w-[140px] max-w-[140px] h-auto rounded-lg border-2 overflow-hidden bg-white shadow-sm transition-all cursor-pointer ${
@@ -37,50 +37,48 @@ function SlideItem({ slide, isActive, index, onClick, onDurationChange }: any) {
       <div className="flex-1 p-2 text-[11px] text-zinc-700 leading-tight overflow-hidden text-ellipsis line-clamp-3">
         {slide.content}
       </div>
-
-      {/* Duration Control */}
-      {onDurationChange && (
-        <div className="px-2 py-1.5 border-t border-zinc-100 bg-zinc-50/50">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] font-semibold text-zinc-400 uppercase">Dur</span>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              step="0.5"
-              value={(slide.duration || 3000) / 1000}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                onDurationChange(index, parseFloat(e.target.value) * 1000);
-              }}
-              className="flex-1 h-1 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-            />
-            <span className="text-[9px] font-mono text-indigo-600 min-w-[20px] text-right">
-              {((slide.duration || 3000) / 1000).toFixed(1)}s
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function TimelineEditor({ slides, currentIndex, setCurrentIndex, setSlides }: TimelineEditorProps) {
-  const handleDurationChange = (index: number, duration: number) => {
+  const globalDuration = slides.length > 0 && slides[0].duration ? slides[0].duration : 3000;
+
+  const handleGlobalDurationChange = (duration: number) => {
     if (!setSlides) return;
-    const updated = slides.map((s, i) => i === index ? { ...s, duration } : s);
+    const updated = slides.map(s => ({ ...s, duration }));
     setSlides(updated);
   };
 
   return (
     <div className="w-full bg-white border-t border-zinc-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-10 shrink-0 overflow-hidden">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <h3 className="text-sm font-semibold text-zinc-700 flex items-center gap-2">
             Timeline
           </h3>
-          <span className="text-xs text-zinc-500">Drag slider to set per-slide duration</span>
+          
+          {setSlides && (
+            <div className="flex items-center justify-end gap-3 bg-zinc-50 px-3 py-1.5 rounded-lg border border-zinc-200">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                Global duration:
+              </span>
+              <div className="flex items-center gap-2 min-w-[120px]">
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.5"
+                  value={globalDuration / 1000}
+                  onChange={(e) => handleGlobalDurationChange(parseFloat(e.target.value) * 1000)}
+                  className="flex-1 h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <span className="text-xs font-mono text-indigo-600 font-bold min-w-[28px] text-right">
+                  {(globalDuration / 1000).toFixed(1)}s
+                </span>
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="flex gap-3 overflow-x-auto pb-2 px-1 snap-x no-scrollbar">
@@ -91,7 +89,6 @@ export default function TimelineEditor({ slides, currentIndex, setCurrentIndex, 
                 index={index}
                 isActive={currentIndex === index}
                 onClick={setCurrentIndex}
-                onDurationChange={setSlides ? handleDurationChange : undefined}
               />
             </div>
           ))}
