@@ -59,14 +59,14 @@ function parseTextToSlides(text: string): Slide[] {
 }
 
 export default function App() {
-  const [inputText, setInputText] = useState(TEMPLATES.predictive.text);
+  const [inputText, setInputText] = useState(TEMPLATES.reddit_story.text);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [themeId, setThemeId] = useState<keyof typeof THEMES>('industrial');
-  const [animationId, setAnimationId] = useState<keyof typeof ANIMATIONS>('slideUp');
+  const [themeId, setThemeId] = useState<keyof typeof THEMES>('dark');
+  const [animationId, setAnimationId] = useState<keyof typeof ANIMATIONS>('typewriter');
   const [speed, setSpeed] = useState('medium');
-  const [primaryColor, setPrimaryColor] = useState<keyof typeof COLORS>('amber');
-  const [bgStyle, setBgStyle] = useState<keyof typeof BG_STYLES>('grid');
+  const [primaryColor, setPrimaryColor] = useState<keyof typeof COLORS>('rose');
+  const [bgStyle, setBgStyle] = useState<keyof typeof BG_STYLES>('solid');
   const [fontScale, setFontScale] = useState(100);
   const [contentWidth, setContentWidth] = useState(95);
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16');
@@ -77,8 +77,8 @@ export default function App() {
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
-  const [creditText, setCreditText] = useState('@slidegen');
-  const [musicTrack, setMusicTrack] = useState<keyof typeof MUSIC_TRACKS>('none');
+  const [creditText, setCreditText] = useState('reliability.co.in');
+  const [musicTrack, setMusicTrack] = useState<keyof typeof MUSIC_TRACKS>('linkedin');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [exportFormat, setExportFormat] = useState<'mp4' | 'webm' | 'gif' | 'apng' | 'pngs'>('webm');
@@ -86,8 +86,8 @@ export default function App() {
   const [transcodeProgress, setTranscodeProgress] = useState(0);
   const [enableTTS, setEnableTTS] = useState(false);
   const [synthVoices, setSynthVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [textBackdrop, setTextBackdrop] = useState<string>('none');
-  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [textBackdrop, setTextBackdrop] = useState<string>('pill');
+  const [musicVolume, setMusicVolume] = useState(0.8);
   const [sidebarTab, setSidebarTab] = useState<'content' | 'style' | 'audio'>('content');
 
 
@@ -514,17 +514,26 @@ export default function App() {
           {sidebarTab === 'content' && (
             <>
               {/* Templates */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                  <LayoutTemplate className="w-4 h-4" /> Templates
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 uppercase tracking-wider text-zinc-500">
+                  <LayoutTemplate className="w-3.5 h-3.5" /> Viral Templates
                 </Label>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   {Object.entries(TEMPLATES).map(([id, t]) => (
                     <Button
                       key={id}
                       variant="outline"
-                      className="justify-start font-normal h-9 text-xs"
-                      onClick={() => setInputText(t.text)}
+                      className="flex-col items-start justify-center text-left font-normal h-auto py-2 px-2.5 text-[10px] sm:text-xs leading-tight"
+                      onClick={() => {
+                        setInputText(t.text);
+                        if ('themeId' in t) setThemeId(t.themeId as any);
+                        if ('animationId' in t) setAnimationId(t.animationId as any);
+                        if ('primaryColor' in t) setPrimaryColor(t.primaryColor as any);
+                        if ('bgStyle' in t) setBgStyle(t.bgStyle as any);
+                        if ('textBackdrop' in t) setTextBackdrop(t.textBackdrop as any);
+                        if ('musicTrack' in t) setMusicTrack(t.musicTrack as any);
+                        if ('globalOverlay' in t) setGlobalOverlay(t.globalOverlay as any);
+                      }}
                     >
                       {t.name}
                     </Button>
@@ -561,163 +570,88 @@ export default function App() {
           )}
 
           {sidebarTab === 'style' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
               {/* Magic Styles */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-indigo-600">
-                  <Sparkles className="w-4 h-4" /> Magic Styles
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button 
-                    variant="outline" 
-                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-indigo-50 border-indigo-100 hover:bg-indigo-100"
-                    onClick={() => {
-                      setThemeId('neon_nights');
-                      setAnimationId('viralPop');
-                      setGlobalOverlay('cybergrid');
-                      setPrimaryColor('cyan');
-                      setMusicTrack('techno');
-                    }}
-                  >
-                    <span className="font-bold">CYBER HACKER</span>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Magic Styles</p>
+                <div className="grid grid-cols-2 gap-1">
+                  <Button variant="outline" className="h-7 text-[10px] font-bold bg-indigo-50 border-indigo-100 hover:bg-indigo-100 px-1"
+                    onClick={() => { setThemeId('neon_nights'); setAnimationId('viralPop'); setGlobalOverlay('cybergrid'); setPrimaryColor('cyan'); setMusicTrack('techno'); setBgStyle('gradient'); setTextBackdrop('frosted'); }}>
+                    CYBER HACKER
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-amber-50 border-amber-100 hover:bg-amber-100"
-                    onClick={() => {
-                      setThemeId('industrial');
-                      setAnimationId('slideUp');
-                      setGlobalOverlay('warning');
-                      setPrimaryColor('amber');
-                      setMusicTrack('cinematic');
-                    }}
-                  >
-                    <span className="font-bold">CRITICAL ALERT</span>
+                  <Button variant="outline" className="h-7 text-[10px] font-bold bg-amber-50 border-amber-100 hover:bg-amber-100 px-1"
+                    onClick={() => { setThemeId('industrial'); setAnimationId('slideUp'); setGlobalOverlay('warning'); setPrimaryColor('amber'); setMusicTrack('cinematic'); setBgStyle('solid'); setTextBackdrop('shadow'); }}>
+                    CRITICAL ALERT
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-zinc-50 border-zinc-100 hover:bg-zinc-100"
-                    onClick={() => {
-                      setThemeId('minimal');
-                      setAnimationId('staggered');
-                      setGlobalOverlay('none');
-                      setPrimaryColor('indigo');
-                      setMusicTrack('lofi');
-                    }}
-                  >
-                    <span className="font-bold">ZEN CLEAN</span>
+                  <Button variant="outline" className="h-7 text-[10px] font-bold bg-zinc-50 border-zinc-100 hover:bg-zinc-100 px-1"
+                    onClick={() => { setThemeId('minimal'); setAnimationId('staggered'); setGlobalOverlay('none'); setPrimaryColor('indigo'); setMusicTrack('lofi'); setBgStyle('gradient'); setTextBackdrop('none'); }}>
+                    ZEN CLEAN
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="h-auto py-2 flex flex-col items-center gap-1 text-[10px] bg-blue-50 border-blue-100 hover:bg-blue-100"
-                    onClick={() => {
-                      setThemeId('oceanic');
-                      setAnimationId('blurReveal');
-                      setGlobalOverlay('waveform');
-                      setPrimaryColor('blue');
-                      setMusicTrack('ambient');
-                    }}
-                  >
-                    <span className="font-bold">DEEP CALM</span>
+                  <Button variant="outline" className="h-7 text-[10px] font-bold bg-cyan-50 border-cyan-100 hover:bg-cyan-100 px-1"
+                    onClick={() => { setThemeId('oceanic'); setAnimationId('blurReveal'); setGlobalOverlay('waveform'); setPrimaryColor('cyan'); setMusicTrack('ambient'); setBgStyle('waves'); setTextBackdrop('none'); }}>
+                    DEEP CALM
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                  <Settings2 className="w-4 h-4" /> Visual Config
-                </Label>
-                <div className="space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-1"><Settings2 className="w-3 h-3" /> Visual Config</p>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                   <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Theme</Label>
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Theme</p>
                     <Select value={themeId} onValueChange={(val) => setThemeId(val as keyof typeof THEMES)}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select theme" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(THEMES).map(([id, t]) => (
-                          <SelectItem key={id} value={id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(THEMES).map(([id, t]) => <SelectItem key={id} value={id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-
                   <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Animation</Label>
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Animation</p>
                     <Select value={animationId} onValueChange={(val) => setAnimationId(val as keyof typeof ANIMATIONS)}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select animation" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(ANIMATIONS).map(([id, a]) => (
-                          <SelectItem key={id} value={id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(ANIMATIONS).map(([id, a]) => <SelectItem key={id} value={id}>{a.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-
                   <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Visual Overlay</Label>
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Overlay</p>
                     <Select value={globalOverlay} onValueChange={setGlobalOverlay}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select overlay" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
                         <SelectItem value="waveform">Waveform</SelectItem>
                         <SelectItem value="heatmap">Heatmap</SelectItem>
-                        <SelectItem value="warning">Warning Indicators</SelectItem>
+                        <SelectItem value="warning">Warning</SelectItem>
                         <SelectItem value="crt">CRT Monitor</SelectItem>
                         <SelectItem value="matrix">Matrix Rain</SelectItem>
                         <SelectItem value="static">Static Noise</SelectItem>
-                        <SelectItem value="cinematic">Cinematic Bars</SelectItem>
+                        <SelectItem value="cinematic">Cinematic</SelectItem>
                         <SelectItem value="cybergrid">Cyber Grid</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Background Style</Label>
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Background</p>
                     <Select value={bgStyle} onValueChange={(val) => setBgStyle(val as keyof typeof BG_STYLES)}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select background" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(BG_STYLES).map(([id, name]) => (
-                          <SelectItem key={id} value={id}>{name}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(BG_STYLES).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                  <Palette className="w-4 h-4" /> Layout & Typography
-                </Label>
-                <div className="space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-1"><Palette className="w-3 h-3" /> Color & Typography</p>
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {Object.entries(COLORS).map(([id, c]) => (
+                    <button key={id} onClick={() => setPrimaryColor(id as keyof typeof COLORS)}
+                      className={`w-6 h-6 rounded-full border-2 transition-all ${primaryColor === id ? 'border-zinc-900 scale-110' : 'border-zinc-200 hover:scale-105'}`}
+                      style={{ backgroundColor: c.hex }} title={c.name} />
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                   <div>
-                    <Label className="text-xs text-zinc-500 mb-2 block">Primary Color</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(COLORS).map(([id, c]) => (
-                        <button
-                          key={id}
-                          onClick={() => setPrimaryColor(id as keyof typeof COLORS)}
-                          className={`w-7 h-7 rounded-full border-2 transition-all ${primaryColor === id ? 'border-zinc-900 scale-110' : 'border-zinc-200 hover:scale-110'}`}
-                          style={{ backgroundColor: c.hex }}
-                          title={c.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Text Backdrop</Label>
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Text Backdrop</p>
                     <Select value={textBackdrop} onValueChange={setTextBackdrop}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select backdrop" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
                         <SelectItem value="frosted">Frosted Glass</SelectItem>
@@ -727,60 +661,36 @@ export default function App() {
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <Label className="text-xs text-zinc-500 block">Font Scale</Label>
-                      <span className="text-[10px] font-mono text-indigo-600">{fontScale}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="50"
-                      max="300"
-                      step="5"
-                      value={fontScale}
-                      onChange={(e) => setFontScale(parseInt(e.target.value))}
-                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <Label className="text-xs text-zinc-500 block">Content Width</Label>
-                      <span className="text-[10px] font-mono text-indigo-600">{contentWidth}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="60"
-                      max="100"
-                      step="1"
-                      value={contentWidth}
-                      onChange={(e) => setContentWidth(parseInt(e.target.value))}
-                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                  <Download className="w-4 h-4" /> Export Config
-                </Label>
-                
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Aspect Ratio</Label>
-                    <div className="flex rounded-md border border-zinc-200 overflow-hidden">
-                      {['9:16', '16:9'].map(ratio => (
-                        <button
-                          key={ratio}
-                          onClick={() => setAspectRatio(ratio as '9:16' | '16:9')}
-                          className={`flex-1 py-2 text-xs font-bold ${aspectRatio === ratio ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}
-                        >
+                    <p className="text-[10px] text-zinc-400 mb-0.5">Aspect Ratio</p>
+                    <div className="flex rounded-md border border-zinc-200 overflow-hidden h-8">
+                      {(['9:16', '16:9'] as const).map(ratio => (
+                        <button key={ratio} onClick={() => setAspectRatio(ratio)}
+                          className={`flex-1 text-[11px] font-bold ${aspectRatio === ratio ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
                           {ratio}
                         </button>
                       ))}
                     </div>
+                  </div>
+                </div>
+                <div className="space-y-1.5 mt-1">
+                  <div>
+                    <div className="flex justify-between mb-0.5">
+                      <p className="text-[10px] text-zinc-400">Font Scale</p>
+                      <span className="text-[10px] font-mono text-indigo-600">{fontScale}%</span>
+                    </div>
+                    <input type="range" min="50" max="300" step="5" value={fontScale}
+                      onChange={(e) => setFontScale(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-0.5">
+                      <p className="text-[10px] text-zinc-400">Content Width</p>
+                      <span className="text-[10px] font-mono text-indigo-600">{contentWidth}%</span>
+                    </div>
+                    <input type="range" min="60" max="100" step="1" value={contentWidth}
+                      onChange={(e) => setContentWidth(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
                   </div>
                 </div>
               </div>
@@ -788,58 +698,51 @@ export default function App() {
           )}
 
           {sidebarTab === 'audio' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider text-zinc-500">
-                  <Video className="w-4 h-4" /> Audio Settings
-                </Label>
-                
-                <div className="space-y-5">
-                  <div>
-                    <Label className="text-xs text-zinc-500 mb-1 block">Background Music</Label>
-                    <Select value={musicTrack} onValueChange={(val) => setMusicTrack(val as keyof typeof MUSIC_TRACKS)}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="No Music" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(MUSIC_TRACKS).map(([id, t]) => (
-                          <SelectItem key={id} value={id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-1">
+                  <Video className="w-3 h-3" /> Background Music
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {Object.entries(MUSIC_TRACKS).map(([id, t]) => (
+                    <button
+                      key={id}
+                      onClick={() => setMusicTrack(id as keyof typeof MUSIC_TRACKS)}
+                      className={`text-[10px] font-semibold px-1 py-2 rounded-lg border transition-all leading-tight text-center ${
+                        musicTrack === id
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                          : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300'
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label className="text-xs text-zinc-500 block">Music Volume</Label>
-                      <span className="text-[10px] font-mono text-indigo-600">{Math.round(musicVolume * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={musicVolume}
-                      onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
-                      className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                    />
-                  </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Volume</p>
+                  <span className="text-[10px] font-mono text-indigo-600">{Math.round(musicVolume * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="1" step="0.01" value={musicVolume}
+                  onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+              </div>
 
-                  <div className="flex items-center space-x-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
-                    <input
-                      type="checkbox"
-                      id="tts-toggle"
-                      checked={enableTTS}
-                      onChange={(e) => setEnableTTS(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <div className="flex flex-col">
-                      <Label htmlFor="tts-toggle" className="text-sm cursor-pointer select-none font-bold text-zinc-700">
-                        A.I. Voiceover (TTS)
-                      </Label>
-                      <span className="text-[10px] text-zinc-400">Narration based on your script</span>
-                    </div>
-                  </div>
+              <div className="flex items-center space-x-3 bg-zinc-50 p-3 rounded-xl border border-zinc-200">
+                <input
+                  type="checkbox" id="tts-toggle" checked={enableTTS}
+                  onChange={(e) => setEnableTTS(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div className="flex flex-col">
+                  <Label htmlFor="tts-toggle" className="text-sm cursor-pointer select-none font-bold text-zinc-700">
+                    A.I. Voiceover (TTS)
+                  </Label>
+                  <span className="text-[10px] text-zinc-400">Narration based on your script</span>
                 </div>
               </div>
             </div>

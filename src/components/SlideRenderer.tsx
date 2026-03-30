@@ -32,7 +32,7 @@ const getBackdropClass = (backdrop: string | undefined): string => {
     case 'shadow':
       return '[text-shadow:_0_2px_12px_rgba(0,0,0,0.9),_0_4px_24px_rgba(0,0,0,0.6),_0_0_4px_rgba(0,0,0,1)]';
     case 'outline':
-      return '[-webkit-text-stroke:_1.5px_rgba(0,0,0,0.7)] [text-shadow:_0_2px_8px_rgba(0,0,0,0.6)]';
+      return '[text-shadow:_1px_1px_0_#000,_-1px_-1px_0_#000,_1px_-1px_0_#000,_-1px_1px_0_#000,_0px_4px_8px_rgba(0,0,0,0.8)]';
     default:
       return '';
   }
@@ -58,11 +58,11 @@ const highlightText = (text: string, colorConfig: any, isInsight: boolean = fals
   return parts;
 };
 
-const viralWordStyle = (word: string, i: number, animation: any) => (
+const viralWordStyle = (word: string, i: number, animation: any, colorConfig: any) => (
   <motion.span
     key={i}
     variants={animation.childVariants}
-    className="inline-block px-2 py-0.5 m-1 rounded-sm bg-yellow-400 text-black font-black uppercase tracking-tighter shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+    className={`inline-block px-2 py-0.5 m-1 rounded-sm ${colorConfig.insight} font-black uppercase tracking-tighter shadow-[4px_4px_0px_rgba(0,0,0,1)]`}
   >
     {word}
   </motion.span>
@@ -76,7 +76,7 @@ const renderAnimatedText = (text: string, animation: any, colorConfig: any, isIn
     return (
       <motion.div variants={animation.variants} initial="initial" animate="animate" exit="exit" className="flex flex-wrap justify-center items-center gap-y-2">
         {words.map((word, i) => (
-          isViral ? viralWordStyle(word, i, animation) : (
+          isViral ? viralWordStyle(word, i, animation, colorConfig) : (
             <motion.span key={i} variants={animation.childVariants}>
               {highlightText(word, colorConfig, isInsight)}
             </motion.span>
@@ -113,9 +113,16 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, theme, anim
 
   const backdropCls = getBackdropClass(textBackdrop);
   // For 'pill' backdrop, long text should use rounded-2xl instead of rounded-full
-  const resolvedBackdropCls = textBackdrop === 'pill' && slide.content.length > 40
+  let resolvedBackdropCls = textBackdrop === 'pill' && slide.content.length > 40
     ? backdropCls.replace('rounded-full', 'rounded-2xl')
     : backdropCls;
+
+  const isViral = animation.name === 'Viral Pop';
+  if (isViral) {
+    // Viral Pop implements its own per-word boxes, so we suppress parent text-shadows
+    // to prevent muddiness and bleeding.
+    resolvedBackdropCls = '';
+  }
 
   return (
     <AnimationWrapper animation={animation} speed={speed} id={slide.id}>

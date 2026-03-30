@@ -211,30 +211,96 @@ export const ANIMATIONS = {
 };
 
 export const TEMPLATES = {
-  predictive: {
-    name: 'Predictive Maintenance',
-    text: `Title: Vibration Analysis Saved This Machine
-Machine running normal
-Vibration increasing slowly
-Warning ignored
-Failure avoided due to early detection
-Insight: Prediction works only with action`
+  reddit_story: {
+    name: 'Reddit Story / Confession',
+    text: `Title: I accidentally deleted our production database
+It was 3 AM on a Friday and I was exhausted
+I was trying to drop a test table
+I forgot to specify the environment flag
+Suddenly, 10 million user records vanished right before my eyes
+Insight: Always double-check your terminal prompts`,
+    themeId: 'dark',
+    animationId: 'typewriter',
+    bgStyle: 'solid',
+    primaryColor: 'rose',
+    textBackdrop: 'pill',
+    musicTrack: 'lofi',
+    globalOverlay: 'none'
   },
-  failure: {
-    name: 'Failure Story',
-    text: `Title: The $10,000 Bearing Failure
-Pump P-102 operating at 100% load
-Lubrication schedule missed by 2 weeks
-Temperature spiked to 180°C
-Catastrophic bearing seizure
-Insight: Maintenance schedules are not suggestions`
+  motivational: {
+    name: 'Sigma Hustle/Motivation',
+    text: `Title: The 1% Rule For Success
+Most people stop when they are tired
+The greats stop when they are done
+Discipline is choosing between what you want now
+And what you want most in life
+Insight: Outwork your excuses`,
+    themeId: 'dark',
+    animationId: 'elasticSlide',
+    bgStyle: 'solid',
+    primaryColor: 'amber',
+    textBackdrop: 'none',
+    musicTrack: 'cinematic',
+    globalOverlay: 'none'
   },
-  insight: {
-    name: 'Quick Insight',
-    text: `Title: The Cost of Downtime
-Reactive maintenance costs 5x more
-Planned downtime is an investment
-Unplanned downtime is an expense
-Insight: Fix it before it breaks`
+  top_facts: {
+    name: 'Top 3 Facts',
+    text: `Title: 3 Psychology Facts You Didn't Know
+Your brain uses 20% of your body's energy every day
+Memories are reconstructed every single time you recall them
+You can only maintain 150 stable relationships at once
+Insight: The mind is your most powerful asset`,
+    themeId: 'neon_nights',
+    animationId: 'bouncyPop',
+    bgStyle: 'dots',
+    primaryColor: 'cyan',
+    textBackdrop: 'frosted',
+    musicTrack: 'techno',
+    globalOverlay: 'none'
+  },
+  tech_hack: {
+    name: 'Cyber Hacks & Tips',
+    text: `Title: Stop Giving Away Your Data
+Every website logs your digital footprint
+Your ISP literally sells your browsing data to advertisers
+Using a free VPN is actually worse than using none at all
+Insight: Take back your digital privacy today`,
+    themeId: 'cyberpunk',
+    animationId: 'glitch',
+    bgStyle: 'grid',
+    primaryColor: 'emerald',
+    textBackdrop: 'pill',
+    musicTrack: 'techno',
+    globalOverlay: 'matrix'
+  },
+  shower_thoughts: {
+    name: 'Deep Shower Thoughts',
+    text: `Title: Deep Shower Thoughts To Hack Your Brain
+Water is just Earth's blood
+We spend our whole lives gathering guests for our funeral
+The oldest person on Earth has seen the entire human population replaced
+Insight: Time is the only currency that matters`,
+    themeId: 'oceanic',
+    animationId: 'blurReveal',
+    bgStyle: 'waves',
+    primaryColor: 'indigo',
+    textBackdrop: 'none',
+    musicTrack: 'ambient',
+    globalOverlay: 'waveform'
+  },
+  breaking_news: {
+    name: 'Urgent Alert / News',
+    text: `Title: URGENT SECURITY ALERT
+A massive zero-day exploit was just found
+Over 3 billion devices are currently vulnerable to attack
+Update your smartphone software immediately
+Insight: Security is not a luxury, it's a necessity`,
+    themeId: 'retro',
+    animationId: 'viralPop',
+    bgStyle: 'solid',
+    primaryColor: 'amber',
+    textBackdrop: 'shadow',
+    musicTrack: 'cinematic',
+    globalOverlay: 'warning'
   }
 };
